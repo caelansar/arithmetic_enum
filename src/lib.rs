@@ -3,8 +3,8 @@ use proc_macro::TokenStream;
 use quote::quote;
 use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(Arithmetic, attributes(add, sub))]
-pub fn addable_derive(input: TokenStream) -> TokenStream {
+#[proc_macro_derive(Arithmetic, attributes(add, sub, mul, div))]
+pub fn arithmetic_derive(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
     let enum_data = if let syn::Data::Enum(ref data) = input.data {
@@ -17,8 +17,13 @@ pub fn addable_derive(input: TokenStream) -> TokenStream {
 
     let enum_name = &input.ident;
 
+    let mut add_arms = Vec::new();
+    let mut sub_arms = Vec::new();
+    let mut mul_arms = Vec::new();
+    let mut div_arms = Vec::new();
+
     // collect #[add] variant
-    let add_arms = enum_data.variants.iter().filter_map(|variant| {
+    enum_data.variants.iter().for_each(|variant| {
         let variant_name = &variant.ident;
 
         // find #[add] attribute
@@ -26,31 +31,42 @@ pub fn addable_derive(input: TokenStream) -> TokenStream {
             attr.path().is_ident("add")
         });
 
-        if has_add_attr {
-            Some(quote! {
-                (#enum_name::#variant_name(a), #enum_name::#variant_name(b)) => #enum_name::#variant_name(a + b),
-            })
-        } else {
-            None
-        }
-    }).collect::<Vec<_>>();
-
-    let sub_arms = enum_data.variants.iter().filter_map(|variant| {
-        let variant_name = &variant.ident;
-
         // find #[sub] attribute
-        let has_add_attr = variant.attrs.iter().any(|attr| {
+        let has_sub_attr = variant.attrs.iter().any(|attr| {
             attr.path().is_ident("sub")
         });
 
+        // find #[mul] attribute
+        let has_mul_attr = variant.attrs.iter().any(|attr| {
+            attr.path().is_ident("mul")
+        });
+
+        // find #[div] attribute
+        let has_div_attr = variant.attrs.iter().any(|attr| {
+            attr.path().is_ident("div")
+        });
+
         if has_add_attr {
-            Some(quote! {
+            add_arms.push(quote! {
+                (#enum_name::#variant_name(a), #enum_name::#variant_name(b)) => #enum_name::#variant_name(a + b),
+            })
+        }
+        if has_sub_attr {
+            sub_arms.push(quote! {
                 (#enum_name::#variant_name(a), #enum_name::#variant_name(b)) => #enum_name::#variant_name(a - b),
             })
-        } else {
-            None
         }
-    }).collect::<Vec<_>>();
+        if has_mul_attr {
+            mul_arms.push(quote! {
+                (#enum_name::#variant_name(a), #enum_name::#variant_name(b)) => #enum_name::#variant_name(a * b),
+            })
+        }
+        if has_div_attr {
+            div_arms.push(quote! {
+                (#enum_name::#variant_name(a), #enum_name::#variant_name(b)) => #enum_name::#variant_name(a / b),
+            })
+        }
+    });
 
     let expanded = quote! {
         impl std::ops::Add for #enum_name {
@@ -93,6 +109,50 @@ pub fn addable_derive(input: TokenStream) -> TokenStream {
                 match (self, other) {
                     #(#sub_arms)*
                     _ => panic!("Sub not supported"),
+                }
+            }
+        }
+
+        impl std::ops::Mul for #enum_name {
+            type Output = #enum_name;
+
+            fn mul(self, other: Self) -> Self::Output {
+                match (self, other) {
+                    #(#mul_arms)*
+                    _ => panic!("Mul not supported"),
+                }
+            }
+        }
+
+        impl std::ops::Mul for &#enum_name {
+            type Output = #enum_name;
+
+            fn mul(self, other: Self) -> Self::Output {
+                match (self, other) {
+                    #(#mul_arms)*
+                    _ => panic!("Mul not supported"),
+                }
+            }
+        }
+
+        impl std::ops::Div for #enum_name {
+            type Output = #enum_name;
+
+            fn div(self, other: Self) -> Self::Output {
+                match (self, other) {
+                    #(#div_arms)*
+                    _ => panic!("Div not supported"),
+                }
+            }
+        }
+
+        impl std::ops::Div for &#enum_name {
+            type Output = #enum_name;
+
+            fn div(self, other: Self) -> Self::Output {
+                match (self, other) {
+                    #(#div_arms)*
+                    _ => panic!("Div not supported"),
                 }
             }
         }
