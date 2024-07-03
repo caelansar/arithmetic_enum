@@ -26,25 +26,23 @@ pub fn arithmetic_derive(input: TokenStream) -> TokenStream {
     enum_data.variants.iter().for_each(|variant| {
         let variant_name = &variant.ident;
 
-        // find #[add] attribute
-        let has_add_attr = variant.attrs.iter().any(|attr| {
-            attr.path().is_ident("add")
-        });
+        let mut has_add_attr = false;
+        let mut has_sub_attr = false;
+        let mut has_mul_attr = false;
+        let mut has_div_attr = false;
 
-        // find #[sub] attribute
-        let has_sub_attr = variant.attrs.iter().any(|attr| {
-            attr.path().is_ident("sub")
-        });
-
-        // find #[mul] attribute
-        let has_mul_attr = variant.attrs.iter().any(|attr| {
-            attr.path().is_ident("mul")
-        });
-
-        // find #[div] attribute
-        let has_div_attr = variant.attrs.iter().any(|attr| {
-            attr.path().is_ident("div")
-        });
+        // check attributes
+        for attr in &variant.attrs {
+            if let Some(ident) = attr.path().get_ident() {
+                match ident.to_string().as_str() {
+                    "add" => has_add_attr = true,
+                    "sub" => has_sub_attr = true,
+                    "mul" => has_mul_attr = true,
+                    "div" => has_div_attr = true,
+                    _ => {},
+                }
+            }
+        }
 
         if has_add_attr {
             add_arms.push(quote! {
